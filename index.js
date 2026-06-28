@@ -1,15 +1,10 @@
-cd ~/hacker-union-bot
-cat > index.js << 'EOF'
 const { default: makeWASocket, DisconnectReason, useMultiFileAuthState, Browsers } = require('@whiskeysockets/baileys');
+const qrcode = require('qrcode-terminal');
 const pino = require('pino');
 const chalk = require('chalk');
-const readline = require('readline');
 const fs = require('fs');
 
 const AUTH_FOLDER = './session'
-
-const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-const question = (text) => new Promise((resolve) => rl.question(text, resolve));
 
 async function startBot() {
     if (!fs.existsSync(AUTH_FOLDER)) fs.mkdirSync(AUTH_FOLDER);
@@ -21,21 +16,19 @@ async function startBot() {
         browser: Browsers.macOS('Chrome')
     });
 
-    if (!sock.authState.creds.registered) {
-        const phoneNumber = await question(chalk.yellow('\nEntre ton numéro WhatsApp avec indicatif. Ex: 22790xxxxxx\n> '));
-        const code = await sock.requestPairingCode(phoneNumber.replace(/[^0-9]/g, ''));
-        console.log(chalk.green(`\n=== TON CODE : ${code} ===\n`));
-        console.log(chalk.yellow('WhatsApp >... > Appareils connectés > Associer avec le numéro de téléphone > Entre le code\n'));
-    }
-
     sock.ev.on('creds.update', saveCreds);
 
     sock.ev.on('connection.update', (update) => {
-        const { connection, lastDisconnect } = update;
+        const { connection, lastDisconnect, qr } = update;
+
+        if (qr) {
+            console.log(chalk.yellow('\n=== SCAN CE QR CODE AVEC WHATSAPP ===\n'));
+            qrcode.generate(qr, { small: true });
+            console.log(chalk.yellow('\nWhatsApp >... > Appareils connectés > Associer un appareil\n'));
+        }
 
         if (connection === 'open') {
-            console.log(chalk.green('\n✅ Bot Connecté!'));
-            rl.close();
+            console.log(chalk.green('\n✅ Bot HACKER UNION Connecté!'));
         } else if (connection === 'close') {
             const shouldReconnect = lastDisconnect.error?.output?.statusCode!== DisconnectReason.loggedOut;
             console.log(chalk.red('❌ Déconnecté. Reconnexion...'), shouldReconnect);
@@ -47,10 +40,17 @@ async function startBot() {
         const msg = messages[0];
         if (!msg.message || msg.key.fromMe) return;
         const text = msg.message.conversation || '';
-        if (text === '!ping') await sock.sendMessage(msg.key.remoteJid, { text: 'Pong ✅' });
-        if (text === '!menu') await sock.sendMessage(msg.key.remoteJid, { text: '*HACKER UNION*\n!ping\n!menu' });
+
+        if (text === '!ping') {
+            await sock.sendMessage(msg.key.remoteJid, { text: 'Pong ✅ Bot HACKER UNION actif' });
+        }
+
+        if (text === '!menu') {
+            await sock.sendMessage(msg.key.remoteJid, {
+                text: '*HACKER UNION BOT*\n\n!ping - Test de connexion\n!menu - Affiche ce menu'
+            });
+        }
     });
 }
 
 startBot();
-EOF
